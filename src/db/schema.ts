@@ -10,6 +10,7 @@ import {
   jsonb,
   pgEnum,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 export const travelStyleEnum = pgEnum("travel_style", [
   "budget",
@@ -32,6 +33,7 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   name: text("name"),
   planCounter: integer("plan_counter").notNull().default(0),
+  planMonth: text("plan_month"),
   subscriptionTier: text("subscription_tier").notNull().default("free"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -76,9 +78,12 @@ export const plans = pgTable("plans", {
     .references(() => trips.id, { onDelete: "cascade" }),
   version: integer("version").notNull().default(1),
   status: planStatusEnum("status").notNull().default("queued"),
+  stage: text("stage"),
+  input: jsonb("input").$type<unknown>(),
   totalCost: numeric("total_cost"),
   itinerary: jsonb("itinerary").$type<unknown>(),
   errorMessage: text("error_message"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -118,3 +123,48 @@ export type Plan = typeof plans.$inferSelect;
 export type PlanDay = typeof planDays.$inferSelect;
 export type CostItem = typeof costItems.$inferSelect;
 export type PreferenceSnapshot = typeof preferenceSnapshots.$inferSelect;
+
+export const tripsRelations = relations(trips, ({ one, many }) => ({
+  user: one(users, {
+    fields: [trips.userId],
+    references: [users.id],
+  }),
+  preferenceSnapshot: one(preferenceSnapshots, {
+    fields: [trips.id],
+    references: [preferenceSnapshots.tripId],
+  }),
+  plans: many(plans),
+}));
+
+export const plansRelations = relations(plans, ({ one, many }) => ({
+  trip: one(trips, {
+    fields: [plans.tripId],
+    references: [trips.id],
+  }),
+  days: many(planDays),
+  costItems: many(costItems),
+}));
+
+export const planDaysRelations = relations(planDays, ({ one }) => ({
+  plan: one(plans, {
+    fields: [planDays.planId],
+    references: [plans.id],
+  }),
+}));
+
+export const costItemsRelations = relations(costItems, ({ one }) => ({
+  plan: one(plans, {
+    fields: [costItems.planId],
+    references: [plans.id],
+  }),
+}));
+
+export const preferenceSnapshotsRelations = relations(
+  preferenceSnapshots,
+  ({ one }) => ({
+    trip: one(trips, {
+      fields: [preferenceSnapshots.tripId],
+      references: [trips.id],
+    }),
+  })
+);

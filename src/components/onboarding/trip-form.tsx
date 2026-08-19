@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  BadgeCheck,
   Compass,
   Loader2,
   MapPin,
@@ -17,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 import {
   Field,
   FieldError,
@@ -69,14 +73,110 @@ function toFieldErrors(error?: { message?: string }) {
   return error ? [error] : undefined;
 }
 
+function currencyOf(budget: ComputeBudgetResult): string {
+  return budget.ok ? budget.currency : "USD";
+}
+
+function stageMessage(stage: string): string {
+  switch (stage) {
+    case "revising":
+      return "Revising your plan to fit your budget…";
+    case "generating":
+      return "Building your day-by-day itinerary…";
+    default:
+      return "Starting your trip…";
+  }
+}
+
 export function TripForm() {
   const [step, setStep] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{
     itinerary: Itinerary;
     budget: ComputeBudgetResult;
+    saved: boolean;
+    remaining: number | null;
+    hardBudgetPerPerson: number | null;
+    budgetFit: {
+      enforced: boolean;
+      fits: boolean;
+      overage: number;
+    } | null;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
+  const [editedItinerary, setEditedItinerary] = useState<Itinerary | null>(
+    null
+  );
+  const [job, setJob] = useState<{
+    planId: string;
+    hardBudgetPerPerson: number | null;
+  } | null>(null);
+  const [progressStage, setProgressStage] = useState("queued");
+
+  useEffect(() => {
+    if (!job) return;
+    let cancelled = false;
+    let finished = false;
+    const startedAt = Date.now();
+    const timer = setInterval(async () => {
+      if (finished) return;
+      if (Date.now() - startedAt > 300_000) {
+        finished = true;
+        clearInterval(timer);
+        setGenerating(false);
+        setJob(null);
+        setError(
+          "Generation is taking longer than expected. Please try again."
+        );
+        return;
+      }
+      try {
+        const response = await fetch(`/api/plans/${job.planId}`, {
+          cache: "no-store",
+        });
+        const data = await response.json();
+        if (cancelled || finished) return;
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error ?? "Failed to check plan status");
+        }
+        if (data.status === "completed") {
+          finished = true;
+          clearInterval(timer);
+          setGenerating(false);
+          setJob(null);
+          toast.success("Your itinerary is ready!");
+          setResult({
+            itinerary: data.result.itinerary,
+            budget: data.result.budget,
+            saved: data.result.saved === true,
+            remaining:
+              data.usage && Number.isFinite(data.usage.remaining)
+                ? data.usage.remaining
+                : null,
+            hardBudgetPerPerson: job.hardBudgetPerPerson,
+            budgetFit: data.result.budgetFit ?? null,
+          });
+        } else if (data.status === "failed") {
+          finished = true;
+          clearInterval(timer);
+          setGenerating(false);
+          setJob(null);
+          const message = data.error ?? "Generation failed. Please try again.";
+          setError(message);
+          toast.error(message);
+        } else {
+          setProgressStage(data.stage ?? data.status);
+        }
+      } catch {
+        // transient network/poll error — keep polling
+      }
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [job]);
 
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
 
@@ -119,6 +219,7 @@ export function TripForm() {
   async function onSubmit(values: TripFormValues) {
     setGenerating(true);
     setError(null);
+    setLimitReached(false);
     try {
       const response = await fetch("/api/trips", {
         method: "POST",
@@ -127,17 +228,21 @@ export function TripForm() {
       });
       const data = await response.json();
       if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Failed to generate your itinerary");
+        if (data.code === "plan_limit_reached") setLimitReached(true);
+        throw new Error(data.error ?? "Failed to start generation");
       }
-      setResult({
-        itinerary: data.itinerary,
-        budget: data.budget ?? {},
+      setProgressStage("queued");
+      setJob({
+        planId: data.planId,
+        hardBudgetPerPerson:
+          values.budgetType === "fixed"
+            ? Number(values.budgetAmount) / Math.max(values.partySize, 1)
+            : null,
       });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong"
       );
-    } finally {
       setGenerating(false);
     }
   }
@@ -146,6 +251,9 @@ export function TripForm() {
     setResult(null);
     setError(null);
     setGenerating(false);
+    setEditedItinerary(null);
+    setJob(null);
+    setLimitReached(false);
     setStep(0);
     form.reset();
   }
@@ -167,9 +275,22 @@ export function TripForm() {
           Planning your trip…
         </h2>
         <p className="mt-3 max-w-md text-muted-foreground">
-          Our AI is building your day-by-day itinerary for{" "}
-          {getValues("destination")} and checking it against your budget. This
-          takes 15–30 seconds.
+          {stageMessage(progressStage)}
+        </p>
+        <div className="mt-6 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-primary/10">
+          <motion.div
+            className="h-full w-1/2 rounded-full bg-primary"
+            animate={{ x: ["-100%", "200%"] }}
+            transition={{
+              duration: 1.6,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          This usually takes 30–90 seconds. You can leave this page and check
+          your trips later.
         </p>
       </div>
     );
@@ -178,11 +299,44 @@ export function TripForm() {
   if (result) {
     return (
       <div className="flex flex-col gap-6">
+        {result.budgetFit && result.budgetFit.enforced && (
+          result.budgetFit.fits ? (
+            <div className="mx-auto flex w-full max-w-xl items-center justify-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-3">
+              <BadgeCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                Fits your {currencyOf(result.budget)} budget
+              </p>
+            </div>
+          ) : (
+            <div className="mx-auto flex w-full max-w-xl items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-300" />
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                This plan runs ~{Math.round(result.budgetFit.overage)}{" "}
+                {currencyOf(result.budget)} over your budget — slightly above
+                your target.
+              </p>
+            </div>
+          )
+        )}
         <ItineraryView
-          itinerary={result.itinerary}
+          itinerary={editedItinerary ?? result.itinerary}
           budget={result.budget}
+          editable
+          onEdit={setEditedItinerary}
+          hardBudgetPerPerson={result.hardBudgetPerPerson}
         />
-        <div className="mx-auto">
+        <div className="mx-auto flex flex-col items-center gap-2">
+          {result.saved && result.remaining !== null && (
+            <p className="text-sm text-muted-foreground">
+              {result.remaining === 0 ? (
+                <Link href="/pricing" className="underline underline-offset-2 hover:text-foreground">
+                  You&apos;ve used all your free plans — upgrade for unlimited.
+                </Link>
+              ) : (
+                `${result.remaining} free plan${result.remaining === 1 ? "" : "s"} left this month.`
+              )}
+            </p>
+          )}
           <Button variant="outline" onClick={resetAll}>
             Plan another trip
           </Button>
@@ -202,7 +356,18 @@ export function TripForm() {
         </h2>
         <p className="mt-3 max-w-md text-muted-foreground">{error}</p>
         <div className="mt-8 flex gap-3">
-          <Button onClick={() => onSubmit(getValues())}>Try again</Button>
+          {limitReached ? (
+            <Button
+              className="gap-2"
+              nativeButton={false}
+              render={<Link href="/pricing" />}
+            >
+              <Sparkles className="h-4 w-4" />
+              Upgrade
+            </Button>
+          ) : (
+            <Button onClick={() => onSubmit(getValues())}>Try again</Button>
+          )}
           <Button variant="outline" onClick={resetAll}>
             Start over
           </Button>

@@ -16,6 +16,7 @@ export interface GenerateStructuredOptions {
   prompt: string;
   schema: Record<string, unknown>;
   temperature?: number;
+  maxTokens?: number;
 }
 
 const providerDefaults: Record<AiProviderName, AiProviderConfig> = {
@@ -39,6 +40,29 @@ const providerDefaults: Record<AiProviderName, AiProviderConfig> = {
   },
 };
 
+const GROQ_MODEL_PRIORITY = [
+  "llama-3.3-70b-versatile",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "qwen/qwen3.6-27b",
+  "llama-3.1-8b-instant",
+];
+
+let resolvedGroqModel: string | null = null;
+
+function errorStatus(error: unknown): number | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof (error as { status: unknown }).status === "number"
+  ) {
+    return (error as { status: number }).status;
+  }
+  return undefined;
+}
+
 export class AiProvider {
   private client: OpenAI;
   readonly config: AiProviderConfig;
@@ -51,41 +75,115 @@ export class AiProvider {
     });
   }
 
+  private async resolveGroqModel(): Promise<string> {
+    if (resolvedGroqModel) return resolvedGroqModel;
+
+    try {
+      const models = await this.client.models.list();
+      const available = new Set(models.data.map((m) => m.id));
+      resolvedGroqModel =
+        GROQ_MODEL_PRIORITY.find((m) => available.has(m)) ?? this.config.model;
+    } catch {
+      resolvedGroqModel = this.config.model;
+    }
+    return resolvedGroqModel;
+  }
+
+  private async modelsToTry(): Promise<string[]> {
+    if (this.config.name !== "groq") {
+      return [this.config.model];
+    }
+    const explicit = process.env.GROQ_MODEL;
+    const resolved = await this.resolveGroqModel();
+    const models: string[] = [];
+    if (explicit && explicit !== resolved) {
+      models.push(explicit);
+    }
+    models.push(resolved);
+    return models;
+  }
+
   async generateStructured<T>(
     options: GenerateStructuredOptions
   ): Promise<T> {
-    const response = await this.client.chat.completions.create({
-      model: this.config.model,
-      temperature: options.temperature ?? 0.7,
-      messages: [
-        ...(options.system ? [{ role: "system" as const, content: options.system }] : []),
-        { role: "user" as const, content: options.prompt },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "structured_output",
-          strict: true,
-          schema: options.schema,
-        },
-      },
-    });
+    const messages = [
+      ...(options.system
+        ? [{ role: "system" as const, content: options.system }]
+        : []),
+      { role: "user" as const, content: options.prompt },
+    ];
+    const temperature = options.temperature ?? 0.7;
+    const maxTokens =
+      options.maxTokens ?? (this.config.name === "groq" ? 6000 : undefined);
 
-    const content = response.choices[0]?.message?.content;
+    for (const model of await this.modelsToTry()) {
+      try {
+        const response = await this.client.chat.completions.create({
+          model,
+          temperature,
+          ...(maxTokens ? { max_tokens: maxTokens } : {}),
+          messages,
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "structured_output",
+              strict: true,
+              schema: options.schema,
+            },
+          },
+        });
+        return this.parseContent(response.choices[0]?.message?.content);
+      } catch (error) {
+        const status = errorStatus(error);
+        if (status === 404) {
+          continue;
+        }
+        if (status === 400 || status === 422) {
+          try {
+            const response = await this.client.chat.completions.create({
+              model,
+              temperature,
+              ...(maxTokens ? { max_tokens: maxTokens } : {}),
+              messages,
+              response_format: { type: "json_object" },
+            });
+            return this.parseContent(response.choices[0]?.message?.content);
+          } catch (error2) {
+            throw error2;
+          }
+        }
+        throw error;
+      }
+    }
+
+    throw new Error(`No working model for ${this.config.name}`);
+  }
+
+  private parseContent<T>(content: string | null | undefined): T {
     if (!content) {
       throw new Error(`Empty response from ${this.config.name}`);
     }
-
     return JSON.parse(content) as T;
   }
 
   async ping(): Promise<{ ok: boolean; model: string }> {
-    const response = await this.client.chat.completions.create({
-      model: this.config.model,
-      messages: [{ role: "user", content: "Reply with the single word: pong" }],
-      max_tokens: 10,
-    });
-    return { ok: true, model: response.model ?? this.config.model };
+    let lastError: unknown;
+    for (const model of await this.modelsToTry()) {
+      try {
+        const response = await this.client.chat.completions.create({
+          model,
+          messages: [{ role: "user", content: "Reply with the single word: pong" }],
+          max_tokens: 10,
+        });
+        return { ok: true, model: response.model ?? model };
+      } catch (error) {
+        lastError = error;
+        if (errorStatus(error) !== 404) {
+          throw error;
+        }
+      }
+    }
+    throw lastError ?? new Error(`No working model for ${this.config.name}`);
   }
 }
 
