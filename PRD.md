@@ -1,5 +1,8 @@
 # Product Requirements Document: PocketTripAI — AI Travel Planner
 
+## 0. Current Status
+- **2026-08-19** — Next.js 16 + React 19 + Tailwind v4 app scaffolded and building. Tech stack locked (see §7). Drizzle schema + migration generated. Landing page hero with motion animations live. Payments decision locked: Razorpay primary (see §10). FR-1 intake questionnaire built and verified. AI decision locked: Gemini Flash primary, Groq fallback, Ollama local (see §7). **FR-3 budget engine + FR-2 itinerary generation implemented and verified end-to-end** (Gemini 3.6 Flash; Nepal/Paris smoke-tested within budget). Next objectives: FR-10 auth (Supabase), FR-8 trip history, async generation progress, save trips to DB.
+
 ## 1. Problem Statement
 Planning a trip is a multi-step, high-friction process: choosing dates, matching a destination to a budget, estimating costs, and building a day-by-day itinerary. Most tools give generic guides; users still can't answer "**can I afford 9 days in Nepal on $1,200?**" and get a concrete, itemized plan back in minutes.
 
@@ -50,17 +53,26 @@ A conversational AI travel planner that takes a few inputs (destination, dates, 
 - **Reliability**: structured JSON output enforced (schema validation + retries).
 - **Security**: no PII in LLM prompts; secure secrets handling; rate limiting.
 
-## 7. Proposed Architecture (Next.js, TypeScript)
-- **Frontend**: Next.js (App Router) + Tailwind; server components; react-query for async generation status.
-- **Backend**: Next.js API routes / route handlers (single-deploy simplicity). If AI orchestration grows, extract a worker.
-- **Async generation**: queue job → POST /api/plans → client polls → WebSocket or SSE for streaming progress.
-- **AI stack**: LLM provider (e.g., Anthropic/OpenAI) with **structured output**; **function/tool calls** for a `computeBudget()` tool that the model invokes.
+## 7. Tech Stack & Architecture (locked 2026-08-19)
+- **Frontend**: Next.js 16 (App Router) + React 19 + Tailwind CSS v4 + **shadcn/ui** components.
+- **Backend**: Next.js route handlers (single-deploy simplicity). Extract a worker if AI orchestration grows.
+- **Async generation**: queue job → POST /api/plans → client polls → WebSocket or SSE for streaming progress. Client state via **TanStack Query**.
+- **Database/Auth/Storage**: **Supabase** (Postgres + Auth + object storage); row-level security scopes data per user.
+- **ORM**: **Drizzle** (SQL-first, fully typed) + drizzle-kit migrations.
+- **AI stack**: provider-agnostic **OpenAI-compatible adapter** (one interface, base-URL + key swap). Primary **Gemini Flash** (free tier, no card, JSON-schema output + tool calling); fallback **Groq** (no training on data); local dev via **Ollama (Qwen3 8B)** on the RTX 3060 Ti. All three support JSON structured output + function/tool calls for the `computeBudget()` tool.
 - **Budget engine**: deterministic TS module — cost-model table (`/data/cost-models/{city}.ts`) with categories; multiplier by style.
-- **Data**: Postgres (Neon/Supabase) + Prisma; KV store for job state; object storage for exports.
+- **Icons**: lucide-react.
+- **Animation**: `motion` (hero/scroll reveals) + Tailwind keyframes (micro-interactions) + React `<ViewTransition>` (route transitions, native in this React version).
+- **Forms/validation**: react-hook-form + Zod.
 - **LLM cost control**: caching identical input hashes, prompt caching, gating free users to N plans.
 
-## 8. Data Model (high level)
-- `User`, `Trip` (destination, dates, party size, style, budget type/amount), `Plan` (versioned), `PlanDay` (activities, transit, meals), `CostItem` (category, amount, currency), `PreferenceSnapshot`.
+## 8. Data Model (Drizzle tables, high level)
+- `Users` — auth linkage, plan counters, subscription tier.
+- `Trips` — destination, dates, party size, style, budget type/amount.
+- `Plans` — versioned generated plans (status, structured itinerary JSON).
+- `PlanDays` — per-day activities, transit, meals.
+- `CostItems` — category, amount, currency.
+- `PreferenceSnapshot` — interests, pace, saved per generation.
 
 ## 9. Cost Model Design (the differentiator)
 Per city, base daily cost per travel style:
@@ -78,6 +90,17 @@ Trip total = Σ(daily) × days + one-off (flights, visas, gear) + 15% buffer. Th
 - **Free**: 2 generated plans/month, basic export (markdown), community templates.
 - **Pro ($4–6/mo)**: unlimited plans, PDF export, budget re-optimization, group split, weather-aware swapping, priority speed, booking links.
 
+## 10a. Payments & Billing (locked 2026-08-19)
+- **Primary: Razorpay** — one integration for both customer bases (Indian + international travelers):
+  - **Domestic**: UPI, cards, net banking, wallets (~2% + GST). **UPI Autopay** for frictionless subscription mandates.
+  - **International**: Razorpay International PG (RBI PA-CB licensed, Dec 2025) — USD/cards from 135+ countries, INR settlement T+2/T+3, **auto eFIRC** per transaction.
+- **No credit card required** — Razorpay settles directly to an Indian bank account / UPI; onboarding works for sole proprietors.
+- **Subscriptions**: Razorpay Subscriptions (recurring billing, smart retry/dunning) mapped to the Pro tier and per-plan gating.
+- **Compliance plan**: register for **GST** (free) + file **LUT** once revenue starts → SaaS exports become **zero-rated**; keep eFIRC/FIRA records for the CA. Solopreneur KYC suffices initially.
+- **Fallbacks**: Cashfree later for lower domestic fees (1.6–1.95%); Dodo/Polar MoR only as a "no tax admin" global shortcut — not needed now (Lemon Squeezy/Gumroad payouts to India are blocked via Stripe).
+- **Integration**: Razorpay Checkout JS (`@razorpay/checkout`) in Next.js; webhooks for `payment.authorized` / subscription events → update `users.subscription_tier` + `plan_counter`. Bill INR domestically, USD internationally.
+- **Timing**: architecture decision now; implementation in **v1.5** (post-MVP) so it does not block FR-1.
+
 ## 11. Success Metrics
 - Activation: % who complete questionnaire.
 - Conversion: % questionnaire → generated plan.
@@ -90,5 +113,7 @@ Trip total = Σ(daily) × days + one-off (flights, visas, gear) + 15% buffer. Th
 - **Hallucinated prices/destinations** → mitigation: constrained cost model + only-known-destination list.
 - **Refund/mistake liability** — add "estimates only" disclaimers.
 - **Rate limits / abuse** → account gating, email verification.
-- Which LLM provider(s)? (need decision in setup)
-- Auth provider choice.
+- Auth strategy confirmed as Supabase Auth (email/OAuth) — finalize OAuth providers.
+- **Indian solo-founder payment lockouts** — Stripe has paused solo/individual onboarding; Lemon Squeezy & Gumroad pay out India via Stripe Connect (blocked). Razorpay avoids both. Verify Razorpay IPG activation with sole-proprietor KYC before relying on it.
+- **GST/LUT timing** — register for GST + file LUT once meaningful revenue begins; until then keep eFIRC records to preserve zero-rated export treatment.
+- **LLM provider**: locked — Gemini Flash (primary) + Groq (fallback) + Ollama (local dev), via OpenAI-compatible adapter. **Gemini free tier may use prompts for training** — acceptable for v1 travel data; flip to Groq-primary via env config if privacy becomes a requirement.
