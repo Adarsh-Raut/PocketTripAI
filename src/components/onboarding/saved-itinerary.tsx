@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { Itinerary } from "@/lib/trip/schema";
 import type { ComputeBudgetResult } from "@/lib/budget/engine";
 import { ItineraryView } from "./itinerary-view";
+import { ExportButtons } from "./export-buttons";
 import { Button } from "@/components/ui/button";
 
 export function SavedItinerary({
@@ -13,11 +14,15 @@ export function SavedItinerary({
   initialItinerary,
   budget,
   hardBudgetPerPerson,
+  isPro,
+  trip,
 }: {
   tripId: string;
   initialItinerary: Itinerary;
   budget: ComputeBudgetResult;
   hardBudgetPerPerson: number | null;
+  isPro: boolean;
+  trip: { destination: string; startDate: string; endDate: string; partySize: number };
 }) {
   const [itinerary, setItinerary] = useState(initialItinerary);
   const [savedItinerary, setSavedItinerary] = useState(initialItinerary);
@@ -124,6 +129,17 @@ export function SavedItinerary({
         editable={editing}
         onEdit={editing ? setItinerary : undefined}
         hardBudgetPerPerson={hardBudgetPerPerson}
+      />
+      <ExportButtons
+        itinerary={itinerary}
+        budget={budget}
+        isPro={isPro}
+        meta={{
+          destination: trip.destination,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          partySize: trip.partySize,
+        }}
       />
     </div>
   );

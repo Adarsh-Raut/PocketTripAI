@@ -7,17 +7,17 @@ import type { Itinerary } from "@/lib/trip/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const categoryColor: Record<string, string> = {
-  attraction: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300",
-  food: "bg-orange-500/15 text-orange-600 dark:text-orange-300",
-  transport: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
-  free: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+  attraction: "bg-forest/10 text-forest dark:bg-sage/10 dark:text-sage",
+  food: "bg-terracotta/10 text-terracotta",
+  transport: "bg-olive/15 text-olive dark:bg-olive/20 dark:text-olive",
+  free: "bg-sage/20 text-forest dark:bg-sage/15 dark:text-sage",
 };
 
 const categoryBar: Record<string, string> = {
-  attraction: "bg-indigo-500",
-  food: "bg-orange-500",
-  transport: "bg-sky-500",
-  free: "bg-emerald-500",
+  attraction: "bg-forest",
+  food: "bg-terracotta",
+  transport: "bg-olive",
+  free: "bg-sage",
 };
 
 const numberFormat = new Intl.NumberFormat(undefined, {
@@ -134,7 +134,7 @@ export function BudgetDashboard({
               <span className="w-8 shrink-0 text-muted-foreground">Day {day.dayNumber}</span>
               <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full rounded-full bg-primary/80"
+                  className="h-full rounded-full bg-gradient-to-r from-forest to-sage dark:from-sage dark:to-ochre"
                   style={{ width: `${Math.round((day.cost / maxDayCost) * 100)}%` }}
                 />
               </div>

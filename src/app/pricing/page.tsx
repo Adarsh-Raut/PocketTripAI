@@ -99,7 +99,7 @@ export default async function PricingPage() {
             <ul className="flex flex-col gap-2.5">
               {freeFeatures.map((feature) => (
                 <li key={feature} className="flex items-start gap-2 text-sm">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-forest dark:text-sage" />
                   <span>{feature}</span>
                 </li>
               ))}
@@ -146,7 +146,7 @@ export default async function PricingPage() {
             <ul className="flex flex-col gap-2.5">
               {proFeatures.map((feature) => (
                 <li key={feature} className="flex items-start gap-2 text-sm">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-forest dark:text-sage" />
                   <span>{feature}</span>
                 </li>
               ))}

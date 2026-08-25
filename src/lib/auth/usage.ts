@@ -4,6 +4,15 @@ import { users } from "@/db/schema";
 
 export const FREE_PLAN_LIMIT = 2;
 
+export async function getSubscriptionTier(userId: string): Promise<"free" | "pro"> {
+  const [user] = await db
+    .select({ subscriptionTier: users.subscriptionTier })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return user?.subscriptionTier === "pro" ? "pro" : "free";
+}
+
 export function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;

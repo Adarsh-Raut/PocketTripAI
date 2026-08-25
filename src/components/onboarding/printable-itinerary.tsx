@@ -1,0 +1,123 @@
+import type { Itinerary } from "@/lib/trip/schema";
+import type { ComputeBudgetResult } from "@/lib/budget/engine";
+import { money, type ExportMeta } from "@/lib/trip/export-markdown";
+import { itineraryTotalCost } from "@/lib/trip/budget-fit";
+
+export function PrintableItinerary({
+  itinerary,
+  budget,
+  meta,
+}: {
+  itinerary: Itinerary;
+  budget: ComputeBudgetResult;
+  meta: ExportMeta;
+}) {
+  const currency = budget.ok ? budget.currency : "USD";
+  const total = budget.ok ? budget.total : itineraryTotalCost(itinerary);
+
+  return (
+    <div className="mx-auto w-full max-w-3xl bg-white p-8 text-slate-900 print:p-0">
+      <h1 className="text-3xl font-bold tracking-tight">
+        {itinerary.destination} — Trip Itinerary
+      </h1>
+      <p className="mt-1 text-sm text-slate-500">
+        {[meta.startDate && meta.endDate ? `${meta.startDate} → ${meta.endDate}` : null, `${meta.partySize} ${meta.partySize === 1 ? "traveler" : "travelers"}`, itinerary.travelStyle ? `${itinerary.travelStyle} style` : null].filter(Boolean).join(" · ")}
+      </p>
+      {itinerary.summary && <p className="mt-4 text-sm leading-relaxed">{itinerary.summary}</p>}
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold">Budget</h2>
+        <table className="mt-2 w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-300 text-left">
+              <th className="py-1.5 font-medium">Category</th>
+              <th className="py-1.5 text-right font-medium">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {budget.ok &&
+              budget.lineItems.map((item) => (
+                <tr key={item.category} className="border-b border-slate-200">
+                  <td className="py-1.5">{item.category}</td>
+                  <td className="py-1.5 text-right">{money(item.subtotal, currency)}</td>
+                </tr>
+              ))}
+            <tr className="font-semibold">
+              <td className="py-1.5">Estimated total</td>
+              <td className="py-1.5 text-right">
+                {money(total, currency)}
+                {budget.ok && budget.buffer ? ` (incl. ${money(budget.buffer, currency)} buffer)` : ""}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        {budget.ok && (
+          <p className="mt-2 text-sm text-slate-500">
+            {money(budget.perPersonTotal, currency)} per person · {money(budget.perPersonPerDay, currency)} per person/day
+          </p>
+        )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold">Itinerary</h2>
+        <div className="mt-3 space-y-6">
+          {itinerary.daysPlan.map((day) => {
+            const dayTotal = day.activities.reduce((sum, a) => sum + a.cost, 0);
+            return (
+              <article key={day.dayNumber}>
+                <h3 className="text-lg font-semibold">
+                  Day {day.dayNumber}
+                  {day.date ? ` — ${day.date}` : ""}
+                  <span className="ml-2 text-sm font-normal text-slate-500">
+                    {money(dayTotal, currency)}
+                  </span>
+                </h3>
+                {day.summary && <p className="mt-1 text-sm leading-relaxed">{day.summary}</p>}
+                {day.lodging && (
+                  <p className="mt-2 text-sm">
+                    <span className="font-medium">Lodging:</span> {day.lodging}
+                  </p>
+                )}
+                {day.meals?.length > 0 && (
+                  <p className="mt-1 text-sm">
+                    <span className="font-medium">Meals:</span> {day.meals.join(", ")}
+                  </p>
+                )}
+                {day.activities.length > 0 && (
+                  <ul className="mt-2 space-y-2">
+                    {day.activities.map((a, i) => (
+                      <li key={i} className="text-sm">
+                        <span className="font-medium">
+                          {a.time} — {a.title}
+                        </span>{" "}
+                        <span className="text-slate-600">({money(a.cost, currency)})</span>
+                        {a.description && (
+                          <span className="block pl-4 text-slate-600">{a.description}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {itinerary.notes?.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold">Notes</h2>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+            {itinerary.notes.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <p className="mt-10 border-t border-slate-200 pt-4 text-xs text-slate-400">
+        Generated by PocketTripAI — {new Date().toLocaleDateString()}
+      </p>
+    </div>
+  );
+}

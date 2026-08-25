@@ -30,6 +30,7 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { ItineraryView } from "@/components/onboarding/itinerary-view";
+import { ExportButtons } from "@/components/onboarding/export-buttons";
 import type { ComputeBudgetResult } from "@/lib/budget/engine";
 import {
   tripFormSchema,
@@ -88,7 +89,7 @@ function stageMessage(stage: string): string {
   }
 }
 
-export function TripForm() {
+export function TripForm({ isPro = false }: { isPro?: boolean }) {
   const [step, setStep] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{
@@ -325,7 +326,18 @@ export function TripForm() {
           onEdit={setEditedItinerary}
           hardBudgetPerPerson={result.hardBudgetPerPerson}
         />
-        <div className="mx-auto flex flex-col items-center gap-2">
+        <ExportButtons
+          itinerary={editedItinerary ?? result.itinerary}
+          budget={result.budget}
+          isPro={isPro}
+          meta={{
+            destination: getValues("destination"),
+            startDate: getValues("startDate"),
+            endDate: getValues("endDate"),
+            partySize: getValues("partySize"),
+          }}
+        />
+        <div className="mx-auto flex flex-col items-center gap-2 print:hidden">
           {result.saved && result.remaining !== null && (
             <p className="text-sm text-muted-foreground">
               {result.remaining === 0 ? (
@@ -670,7 +682,7 @@ export function TripForm() {
             variant="ghost"
             onClick={handleBack}
             disabled={step === 0}
-            className="gap-2"
+            className="gap-2 rounded-full"
           >
             <ArrowLeft className="h-4 w-4" />
             Back

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { createClient } from "@/lib/supabase/server";
+import { getSubscriptionTier } from "@/lib/auth/usage";
 import { TripForm } from "@/components/onboarding/trip-form";
 
 export const metadata: Metadata = {
@@ -7,7 +9,13 @@ export const metadata: Metadata = {
     "Tell us where you want to go, how long you'll stay, and what you can spend. We'll build your itinerary.",
 };
 
-export default function PlanPage() {
+export default async function PlanPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isPro = user ? (await getSubscriptionTier(user.id)) === "pro" : false;
+
   return (
     <main className="flex flex-1 flex-col px-6 py-12">
       <div className="mx-auto mb-10 max-w-2xl text-center">
@@ -19,7 +27,7 @@ export default function PlanPage() {
           your budget.
         </p>
       </div>
-      <TripForm />
+      <TripForm isPro={isPro} />
     </main>
   );
 }

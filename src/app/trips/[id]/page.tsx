@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db";
 import { trips } from "@/db/schema";
 import { computeBudget } from "@/lib/budget/engine";
+import { getSubscriptionTier } from "@/lib/auth/usage";
 import { SavedItinerary } from "@/components/onboarding/saved-itinerary";
 import { Button } from "@/components/ui/button";
 import type { Itinerary } from "@/lib/trip/schema";
@@ -75,16 +76,21 @@ export default async function TripDetailPage({
       : null;
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {trip.destination}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {trip.startDate} → {trip.endDate} ·{" "}
-            {trip.partySize} {trip.partySize === 1 ? "traveler" : "travelers"}
-          </p>
+        <div className="flex items-center gap-4">
+          <span className="hidden size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-forest to-forest-dark font-heading text-xl font-semibold text-cream sm:inline-flex">
+            {trip.destination.charAt(0).toUpperCase()}
+          </span>
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {trip.destination}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {trip.startDate} → {trip.endDate} ·{" "}
+              {trip.partySize} {trip.partySize === 1 ? "traveler" : "travelers"}
+            </p>
+          </div>
         </div>
         <Button
           variant="outline"
@@ -97,6 +103,13 @@ export default async function TripDetailPage({
         initialItinerary={plan.itinerary as Itinerary}
         budget={budget}
         hardBudgetPerPerson={hardBudgetPerPerson}
+        isPro={(await getSubscriptionTier(user.id)) === "pro"}
+        trip={{
+          destination: trip.destination,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          partySize: trip.partySize,
+        }}
       />
     </main>
   );
