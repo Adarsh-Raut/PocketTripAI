@@ -4,19 +4,15 @@
 
 PocketTripAI is an AI travel planner built with **Next.js 16**, **Drizzle + Postgres**, and **Supabase Auth**. You choose the destination, dates, travel style and budget. An LLM drafts the itinerary, and a budget engine checks it against your ceiling. If it is over budget, the plan is revised automatically.
 
-![PocketTripAI landing page](docs/screenshots/landing-desktop.png)
+![PocketTripAI landing page](docs/screenshots/landing.webp)
 
 | Itinerary | Budget dashboard |
 | --- | --- |
-| ![Day-by-day itinerary](docs/screenshots/itinerary-desktop.png) | ![Budget dashboard](docs/screenshots/budget-desktop.png) |
-
-| Plan a trip | Pricing |
-| --- | --- |
-| ![Trip intake form](docs/screenshots/plan-desktop.png) | ![Pricing page](docs/screenshots/pricing-desktop.png) |
+| ![Day-by-day itinerary](docs/screenshots/itinerary.webp) | ![Budget dashboard](docs/screenshots/budget.webp) |
 
 The same itinerary in dark mode:
 
-![Saved trip in dark mode](docs/screenshots/trip-dark-desktop.png)
+![Saved trip in dark mode](docs/screenshots/trip-dark.webp)
 
 *Screenshots show a real itinerary generated for a sample 5-day Lisbon trip on the local dev setup. To regenerate them, see [Screenshots](#-screenshots).*
 
@@ -177,9 +173,12 @@ npm run dev -- -p 3100
 npm i --no-save playwright && npx playwright install chromium
 node docs/screenshots/capture.mjs                 # generates a fresh trip via the AI provider
 TRIP_ID=<uuid> node docs/screenshots/capture.mjs  # or reuse an existing trip
+node docs/screenshots/optimize.mjs                # PNG -> small WebP for the README
 ```
 
-The script signs in as `demo@example.com`, switches that user to Pro for the run (so exports show) and back to Free afterwards. It writes desktop and mobile shots for the landing, pricing, login, plan, trip, budget, itinerary and trips screens, plus dark mode.
+Full-size captures go to `docs/screenshots/raw/` (gitignored). Only the four optimized WebP files the README uses are committed, about 190 KB in total, so the GitHub page loads quickly.
+
+The script signs in as `demo@example.com`, switches that user to Pro for the run (so exports show) and back to Free afterwards. It writes desktop and mobile shots of the landing, pricing, login, plan, trip, budget, itinerary and trips screens, plus dark mode.
 
 ---
 

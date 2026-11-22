@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Full-size screenshot captures (the README uses optimized WebP copies)
+docs/screenshots/raw/

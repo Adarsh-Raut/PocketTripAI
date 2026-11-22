@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3100";
-const OUT = process.env.OUT_DIR ?? path.dirname(fileURLToPath(import.meta.url));
+const OUT = process.env.OUT_DIR ?? path.join(path.dirname(fileURLToPath(import.meta.url)), "raw");
 const EMAIL = "demo@example.com";
 const SIZES = { desktop: { width: 1440, height: 900 }, mobile: { width: 390, height: 844 } };
 const TRIP = {
