@@ -81,7 +81,14 @@ export function SiteFooter() {
             © {new Date().getFullYear()} PocketTripAI. All rights reserved.
           </p>
           <p className="text-xs text-muted-foreground">
-            Made for budget travelers, everywhere.
+            Made by{" "}
+            <a
+              href="https://adarshraut.vercel.app"
+              className="underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Adarsh Raut
+            </a>{" "}
+            for budget travelers, everywhere.
           </p>
         </div>
       </div>

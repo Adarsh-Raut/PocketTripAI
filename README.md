@@ -226,4 +226,6 @@ MIT
 
 ---
 
-Built by [Adarsh Raut](https://adarshraut.vercel.app)
+Built by [Adarsh Raut](https://adarshraut.vercel.app), software engineer and full stack developer in Pune · [LinkedIn](https://www.linkedin.com/in/adarsh-raut/) · [GitHub](https://github.com/Adarsh-Raut)
+
+Read how it was built: [How I built PocketTripAI](https://adarshraut.vercel.app/blog/how-i-built-pockettripai)

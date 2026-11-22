@@ -25,6 +25,8 @@ export const metadata: Metadata = {
   title: "PocketTripAI — AI Travel Planner",
   description:
     "Plan complete, itemized trips that fit your budget. AI-powered day-by-day itineraries for any destination.",
+  authors: [{ name: "Adarsh Raut", url: "https://adarshraut.vercel.app" }],
+  creator: "Adarsh Raut",
   icons: {
     icon: "/icon.svg",
     apple: "/icon.svg",
