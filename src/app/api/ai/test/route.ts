@@ -1,9 +1,30 @@
 import { NextResponse } from "next/server";
 import { getActiveProvider } from "@/lib/ai/client";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+// Diagnostic endpoint. Each call makes real AI requests, so it is off in
+// production unless AI_TEST_ENABLED=true, and always needs a signed-in user.
 export async function GET() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.AI_TEST_ENABLED !== "true"
+  ) {
+    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json(
+      { ok: false, error: "Sign in to run the AI check" },
+      { status: 401 }
+    );
+  }
+
   const provider = getActiveProvider();
 
   try {

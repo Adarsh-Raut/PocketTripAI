@@ -7,6 +7,7 @@ import { computeBudget } from "@/lib/budget/engine";
 import { calcDays } from "@/lib/trip/generate";
 import { checkBudgetFit } from "@/lib/trip/budget-fit";
 import { checkPlanUsage } from "@/lib/auth/usage";
+import { failIfStale } from "@/lib/trip/job-queue";
 import type { Itinerary } from "@/lib/trip/schema";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,16 @@ export async function GET(
 
   if (!trip || trip.userId !== user.id) {
     return NextResponse.json({ ok: false, error: "Plan not found" }, { status: 404 });
+  }
+
+  const staleError = await failIfStale(plan, user.id);
+  if (staleError) {
+    return NextResponse.json({
+      ok: true,
+      status: "failed",
+      stage: null,
+      error: staleError,
+    });
   }
 
   const base = {

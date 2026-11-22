@@ -103,7 +103,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000), go to **Sign in**, and press **Dev login (local only)**. Then head to **Plan a trip**.
 
-Check the AI provider at any time with `GET /api/ai/test`.
+Check the AI provider with `GET /api/ai/test` (needs a signed-in session; in production it returns 404 unless `AI_TEST_ENABLED=true`).
 
 ---
 
@@ -115,12 +115,34 @@ Check the AI provider at any time with `GET /api/ai/test`.
 
 ---
 
+## ☁️ Deploying to Vercel
+
+1. Import the repo in Vercel. The framework (Next.js) is detected automatically.
+2. Add these environment variables (Production):
+
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=...
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+   DATABASE_URL=...            # Supabase pooler URL (transaction mode, port 6543)
+   AI_PROVIDER=groq            # or gemini
+   GROQ_API_KEY=...            # or GEMINI_API_KEY
+   ```
+
+   Do **not** set `DEV_LOGIN`, `NEXT_PUBLIC_DEV_LOGIN` or `UPGRADE_BYPASS` in production. The last one would let anyone give themselves Pro.
+3. Run the migrations once against Supabase, from your machine: `DATABASE_URL="<session or direct connection string>" npm run db:migrate`. Use port 5432, not the 6543 pooler, for migrations.
+4. In Supabase, go to Authentication → URL Configuration. Set the Site URL to your Vercel domain and add `https://<your-domain>/auth/callback` to the redirect URLs.
+5. Deploy. `vercel.json` pins functions to `sin1` (Singapore) to sit next to the database. Change it if your Supabase project is in another region.
+
+Generation runs for up to 5 minutes (`maxDuration = 300`), which Vercel's Hobby plan allows with Fluid Compute (the default on new projects).
+
+---
+
 ## 🧠 How It Works
 
 1. `POST /api/trips` validates the form, reserves a free-plan slot, saves the trip and returns `queued` in about 2 seconds.
-2. An in-process worker (`src/lib/trip/job-queue.ts`, started from `src/instrumentation.ts`) claims the plan and calls the AI provider. It reports a `stage` as it goes.
+2. Right after responding, the same request keeps working through Next.js `after()` (`src/lib/trip/job-queue.ts`). It claims the plan and calls the AI provider, reporting a `stage` as it goes. The route sets `maxDuration = 300`, so this works on Vercel without a separate worker.
 3. `checkBudgetFit()` verifies the plan against the hard budget. If it is over, the model is re-prompted with the exact overage, up to 2 times.
-4. The client polls `GET /api/plans/[id]` and renders the itinerary and dashboard when it completes. On failure the slot is refunded.
+4. The client polls `GET /api/plans/[id]` and renders the itinerary and dashboard when it completes. On failure the slot is refunded. A plan stuck too long (function timed out or was redeployed mid-run) is failed and refunded the next time it is polled.
 5. Saved trips can be edited in place; `PATCH /api/trips/[id]` persists the changes and recomputes totals.
 
 ---
@@ -143,7 +165,7 @@ src/
 │   ├── auth/           # syncUser, usage limits, dev login
 │   ├── budget/         # Per-city cost model engine
 │   ├── supabase/       # Browser + server clients
-│   └── trip/           # Schema, generation, budget-fit, job queue, markdown export
+│   └── trip/           # Schema, generation, budget-fit, job runner, markdown export
 └── proxy.ts            # Session refresh + route guards
 drizzle/                # SQL migrations
 docs/screenshots/       # README screenshots + capture script

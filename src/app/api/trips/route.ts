@@ -1,12 +1,15 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { tripFormSchema } from "@/lib/trip/schema";
 import { createClient } from "@/lib/supabase/server";
 import { syncUser } from "@/lib/auth/sync-user";
 import { checkPlanUsage, incrementPlanUsage } from "@/lib/auth/usage";
 import { db } from "@/db";
+import { processPlan } from "@/lib/trip/job-queue";
 import { plans, preferenceSnapshots, trips } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
+// Generation runs in after() below, so the function must stay alive that long.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -92,6 +95,7 @@ export async function POST(request: Request) {
       .returning();
 
     await incrementPlanUsage(appUser.id);
+    after(() => processPlan(plan.id));
     const usageAfter = await checkPlanUsage(appUser.id);
 
     return NextResponse.json({
