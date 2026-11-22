@@ -4,6 +4,8 @@
 
 PocketTripAI is an AI travel planner built with **Next.js 16**, **Drizzle + Postgres**, and **Supabase Auth**. You choose the destination, dates, travel style and budget. An LLM drafts the itinerary, and a budget engine checks it against your ceiling. If it is over budget, the plan is revised automatically.
 
+**🌐 Live demo: [pockettripai.vercel.app](https://pockettripai.vercel.app/)**
+
 ![PocketTripAI landing page](docs/screenshots/landing.webp)
 
 | Itinerary | Budget dashboard |
@@ -97,9 +99,11 @@ UPGRADE_BYPASS=true
 ### 4. Migrate and run
 
 ```bash
-npm run db:migrate
+DATABASE_URL="postgresql://pockettrip:pockettrip@localhost:5442/pockettripai" npm run db:migrate
 npm run dev
 ```
+
+The explicit `DATABASE_URL=` prefix keeps the migration pointed at the local Docker database even if your `.env` holds a production URL (drizzle-kit reads `.env`).
 
 Open [http://localhost:3000](http://localhost:3000), go to **Sign in**, and press **Dev login (local only)**. Then head to **Plan a trip**.
 
