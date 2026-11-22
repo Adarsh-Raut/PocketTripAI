@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { DEV_LOGIN_COOKIE, devUserFromEmail } from "@/lib/auth/dev-login";
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -25,9 +26,8 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const devUser = devUserFromEmail(request.cookies.get(DEV_LOGIN_COOKIE)?.value);
+  const user = devUser ?? (await supabase.auth.getUser()).data.user;
 
   const pathname = request.nextUrl.pathname;
   const isProtected =

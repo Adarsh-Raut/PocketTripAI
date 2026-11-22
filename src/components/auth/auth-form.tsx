@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -164,6 +165,16 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                 : "Create account"}
           </Button>
         </form>
+
+        {process.env.NODE_ENV === "development" &&
+          process.env.NEXT_PUBLIC_DEV_LOGIN === "1" && (
+            <a
+              href="/api/dev-login?email=demo@example.com&next=/trips"
+              className={cn(buttonVariants({ variant: "secondary" }), "w-full")}
+            >
+              Dev login (local only)
+            </a>
+          )}
 
         <p className="text-center text-sm text-muted-foreground">
           {isLogin ? (

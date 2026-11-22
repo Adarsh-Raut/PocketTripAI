@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pockettripai-db
+    environment:
+      POSTGRES_USER: pockettrip
+      POSTGRES_PASSWORD: pockettrip
+      POSTGRES_DB: pockettripai
+    ports:
+      - "5442:5432"
+    volumes:
+      - pockettripai_pg:/var/lib/postgresql/data
+
+volumes:
+  pockettripai_pg:
